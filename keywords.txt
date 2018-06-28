@@ -1,0 +1,44 @@
+#######################################
+# Syntax Coloring Map 
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+global_x	KEYWORD1
+global_y	KEYWORD1
+local_x		KEYWORD1
+ocal_y		KEYWORD1
+global_orientation	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+dinit	KEYWORD2
+driveto	KEYWORD2
+steer	KEYWORD2
+debugMode	KEYWORD2
+debug	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+INCH2C	LITERAL1
+COUNTER2INCHE	LITERAL1
+WHEELWIDTH	LITERAL1
+ENCODERREVOLUTION	LITERAL1
+ECLA	LITERAL1
+ECRA	LITERAL1
+ECLB	LITERAL1
+ECRB	LITERAL1
+EPOWERL	LITERAL1
+EPOWERR	LITERAL1
+MOTOR_DRIVER	LITERAL1
+K1	LITERAL1
+K2	LITERAL1
+V	LITERAL1
+I	LITERAL1
+
