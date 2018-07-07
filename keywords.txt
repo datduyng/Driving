@@ -1,5 +1,5 @@
 #######################################
-# Syntax Coloring Map 
+# Syntax Coloring Map
 #######################################
 
 #######################################
@@ -21,6 +21,8 @@ driveto	KEYWORD2
 steer	KEYWORD2
 debugMode	KEYWORD2
 debug	KEYWORD2
+imuInit KEYWORD2
+imuDebug KEYWORD2
 
 #######################################
 # Constants (LITERAL1)
@@ -41,4 +43,3 @@ K1	LITERAL1
 K2	LITERAL1
 V	LITERAL1
 I	LITERAL1
-

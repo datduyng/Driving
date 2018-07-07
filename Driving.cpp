@@ -15,7 +15,12 @@ Motor Driver: Sabertooth Motor Driver
 #include <math.h>
 
 SabertoothSimplified motordriver(Serial3);
-MPU6050 accelgyro;
+MPU6050 mpu;
+NewPing sonar[SONAR_NUM] = {     // Sensor object array.
+  NewPing(8, 9, MAX_DISTANCE), // Each sensor's trigger pin, echo pin, and max distance to ping.
+  NewPing(10, 11, MAX_DISTANCE)
+};
+
 
 
 //declare global & local coordinates
@@ -25,8 +30,19 @@ float local_x = 0.0;
 float local_y = 0.0;
 int16_t global_orientation = 0;
 
-int16_t ax, ay, az;
-int16_t gx, gy, gz;
+ float global_IMU_x = 0;
+ float global_IMU_y = 0.0;
+ float local_IMU_x = 0.0;
+ float local_IMU_y=0.0 ;
+ int16_t global_IMU_orientation=0.0;
+ int16_t local_IMU_orientation=0.0 ;
+ long ECLT =0;
+ long ECRT=0;
+ long left_targetcount1=0;
+ long right_targetcount1=0;
+
+Vector accel;
+Vector gyro;
 
 //declare encoder counter
 volatile int64_t ECL = 0;    //encoder counter - LEFT
@@ -73,6 +89,7 @@ void dinit (){
 	//Serial.begin(9600);
 
 	Serial3.begin(19200);
+	
 }
 
 //Initiator with customize I/O pins, the argument must be pointer to an array with
@@ -118,6 +135,11 @@ float C2D (int64_t EncoderCount ){
 }
 
 int16_t comparator( int64_t L, int64_t R ){
+	// return abs( ECL - L ) - abs( ECR - R );
+	return abs(L) - abs(R);
+}
+
+int16_t comparator2( int64_t L, int64_t R ){
 	return abs( ECL - L ) - abs( ECR - R );
 }
 
@@ -129,6 +151,7 @@ int64_t R2C ( int16_t angle ){
 	return D2C ( ( (float) angle / 360.0 * (float) WHEELWIDTH * M_PI ) );
 }
 
+
 int16_t R2D (float radian){
 	return radian * (180.0 / M_PI );
 }
@@ -138,14 +161,23 @@ int16_t C2R ( int64_t encoderCount ){
 }
 
 void steer ( int16_t toAngle ){
-	const int64_t left_targetcount = ECL + R2C(toAngle + 2);
-	const int64_t right_targetcount = ECR - R2C(toAngle + 2);
+	int LEFT_OFFSET = 0;
+	int RIGHT_OFFSET = 0;
+	if(toAngle > 0){// if turn right
+		LEFT_OFFSET = L_TARGET_ANGLE_OFFSET;
+		RIGHT_OFFSET = R_TARGET_ANGLE_OFFSET;
+	}else{// if turn left
+		LEFT_OFFSET = L_TARGET_ANGLE_OFFSET;
+		RIGHT_OFFSET = -R_TARGET_ANGLE_OFFSET-1.0;
+	}
+	const int64_t left_targetcount = ECL + R2C(toAngle+LEFT_OFFSET);
+	const int64_t right_targetcount = ECR - R2C(toAngle+RIGHT_OFFSET);
 	/*
 	Serial.println((int32_t)R2C(toAngle));
 	Serial.println((int32_t)left_targetcount);
 	Serial.println((int32_t)right_targetcount);
 	*/
-	driving1 = 0;
+	driving1 = 0;// left drive
 	driving2 = 0;
 	na = 0;
 	int8_t pause = 0;
@@ -155,18 +187,27 @@ void steer ( int16_t toAngle ){
 	const int ECLI = ECL;
 	const int ECRI = ECR;
 
+  	Serial.print("left_targetcount");Serial.println((int32_t)left_targetcount);
+  	Serial.print("right_targetcount");Serial.println((int32_t)right_targetcount);
+
 	while ( true ) {
-		driving1 = constrain( (double) K1 * (left_targetcount - ECL), -113, 112);
-		driving2 = constrain( (double) K2 * (right_targetcount - ECR), -127, 127);
+		driving1 = constrain( (double) K1 * (left_targetcount - ECL), -L_MOTOR_MAX, L_MOTOR_MAX);
+		driving2 = constrain( (double) K2 * (right_targetcount - ECR), -R_MOTOR_MAX, R_MOTOR_MAX);
 
 /*
 the comparison value of the encoder count difference per iteration
 positive mean left motor is faster than the right motor and vise versa
 */
 
-		int16_t v = comparator( ECLO, ECRO );
+		int16_t v = comparator2( ECLO, ECRO );
+		ECLO = ECL;
+		ECRO = ECR;
 		if( (v*(float) V) > 30.0 ){} //Serial.println("Warning! There is a large speed differential.");
 		else v *= (float) V;
+		Serial.print("ECL:");
+		Serial.print( (int32_t) ECL);
+		Serial.print("\tECR:");
+		Serial.print( (int32_t) ECR);
 		if(toAngle > 0 ){
 
 			if( v > 0 ){
@@ -198,70 +239,49 @@ positive mean left motor is faster than the right motor and vise versa
 			}
 
 		}
-
-		int16_t integral = comparator( ECLI, ECRI );
-		// if( integral*  (float) I > 20 ) Serial.println("Warning! There is a large integral difference");
-		// if(toAngle > 0 ){
-
-			// if( integral > 0 ){
-				// if (driving1 > 0){
-					// driving1 -= integral* (float) I;
-				// }else{
-					// driving2 += integral* (float) I;
-				// }
-			// } else {
-				// if (driving2 > 0){
-					// driving2 -= integral* (float) I;
-				// }else{
-					// driving1 += integral* (float) I;
-				// }
-			// }
-		// }else {
-			// if( integral > 0 ){
-				// if (driving1 < 0){
-					// driving1 += integral* (float) I;
-				// }else{
-					// driving2 += integral* (float) I;
-				// }
-			// } else {
-				// if (driving2 < 0){
-					// driving2 -= integral* (float) I;
-				// }else{
-					// driving1 -= integral* (float) I;
-				// }
-			// }
-
-		// }
+		Serial.print("\tECLO:");
+		Serial.print( (int32_t) ECLO);
+		Serial.print("\tECRO:");
+		Serial.print( (int32_t) ECRO);
+		Serial.print("\tV1:");
+		Serial.print(driving1);
+		Serial.print("\tV2:");
+		Serial.print(driving2);
+		Serial.println("");
+		int16_t integral = comparator2( ECLI, ECRI );
 
 		if (toAngle> 0){
-			driving1 = constrain( driving1, 0, 112);
-			driving2 = constrain( driving2, -127, 0);
+			driving1 = constrain( driving1, 0, L_MOTOR_MAX);
+			driving2 = constrain( driving2, -R_MOTOR_MAX, 0);
 		}else{
-			driving1 = constrain(driving1, -113, 0);
-			driving2 = constrain(driving2, 0, 127);
+			driving1 = constrain(driving1, -L_MOTOR_MAX, 0);
+			driving2 = constrain(driving2, 0, R_MOTOR_MAX);
 		}
-
-
 
 
 		motordriver.motor(1, driving1);
 		motordriver.motor(2, driving2);
 
+		// if(ECL == left_targetcount || ECR == right_targetcount){
+		// 	break;
+		// }
+		Serial.println("steering");
 		//if the motor(s) stall for 0.1s, quit the iteration
 		if ( ECL == ECLO || ECR == ECRO ) {
+			break;
 			if ( pause == 0 ) {
 				timestamp = millis();
 				pause = 1;
 			} else {
-				if ( abs(millis() - timestamp) > 100 ) {
+				if ( abs(millis() - timestamp) > 200 ) {
 					pause = 0;
+					Serial.println("break");
 					break;
 				}
 			}
 		}
 
-		ECLO = ECL;
-		ECRO = ECR;
+
 		//if (debug == true)debugMode();
 		/*
 		Serial.print( (int32_t) ECL);
@@ -288,23 +308,14 @@ positive mean left motor is faster than the right motor and vise versa
 	//global_orientation = constrain(global_orientation, -180, 180);
 
 	//Serial.println(global_orientation);
-
+	ECL = 0;
+	ECR = 0;
 }
 
 void driveto( float distance ) {
-	// time is calculated in microS
-	// long currentTime = 0;
-	// long previousTime =0;
 
-	// elapsed time is in ms
-	// float elapsedTime = 0;
-
-	// global_IMU_x = 0;
-	// global_IMU_y = 0;
-	// global_IMU_z = 0;
-
-	const int64_t left_targetcount = ECL+ D2C( distance + 0.15 );
-	const int64_t right_targetcount = ECR + D2C( distance + 0.15 );
+	const int64_t left_targetcount = ECL+ D2C( distance + L_TARGET_DIST_OFFSET );
+	const int64_t right_targetcount = ECR + D2C( distance + R_TARGET_DIST_OFFSET );
 	driving1 = 0;
 	driving2 = 0;
 	na = 0;
@@ -312,41 +323,61 @@ void driveto( float distance ) {
 	uint64_t timestamp = 0;
 	int ECLO = -1;
 	int ECRO = -1;
+	int left_encoder_offset= 0;
+	int right_encoder_offset = 0;
 	const int ECLI = ECL;
 	const int ECRI = ECR;
+	int mode = 0; 
+	Serial.begin(9600);
+  	Serial.print("left_targetcount");Serial.println((int32_t)left_targetcount);
+  	Serial.print("right_targetcount");Serial.println((int32_t)right_targetcount);
 
+	// if(abs(abs(ECL) - abs(ECR)) > 100){
+	// 	Serial.println("used mode 2");
+	// 	mode = 2; 
+	// }else{
+	// 	Serial.println("used mode 1");
+ //  		mode = 1; 
+ //  	}
+  	mode = 1;
 	while ( true ) {
-		driving1 = constrain( (double) K1 * (left_targetcount - ECL), -113, 112);
-		driving2 = constrain( (double) K2 * (right_targetcount - ECR), -127, 127);
-
-		// start timer
-		//previousTime = micros();
-
-
-		// read accelerometer and gyro
-		// bno.getEvent(&event);
-		// imu::Vector<3> accel = bno.getVector(Adafruit_BNO055::VECTOR_ACCELEROMETER);
-		// imu::Vector<3> gyro = bno.getVector(Adafruit_BNO055::VECTOR_GYROSCOPE);
-		//
-		// global_IMU_orientation = R2D (gyro.y * elapsedTime);
-		// global_IMU_x += (1/2) * ((float)accel.x) * (elapsedTime * elapsedTime);
-		// global_IMU_y += (1/2) * ((float)accel.y) * (elapsedTime * elapsedTime);
-
-/*
+		// debugMode();
+		driving1 = constrain( (double) K1 * (left_targetcount - ECL), -L_MOTOR_MAX, L_MOTOR_MAX);
+		driving2 = constrain( (double) K2 * (right_targetcount - ECR), -R_MOTOR_MAX, R_MOTOR_MAX);
+	
+/*	
 the comparison value of the encoder count difference per iteration
 positive value indicates left motor is faster than the right motor and vise versa
-*/
-		int16_t v = comparator( ECLO, ECRO );
+*/		
+
+
+		int16_t v;
+		if(mode == 1){
+			v = comparator( ECLO, ECRO);
+		}else if(mode == 2){
+			v = comparator2( ECLO, ECRO);
+		}
+
+		ECLO = ECL;
+		ECRO = ECR;
+		
+		Serial.print("ECL:");
+		Serial.print( (int32_t) ECL);
+		Serial.print("\tECR:");
+		Serial.print( (int32_t) ECR);
+		Serial.print("\tdiff(v):");Serial.print(v);
+		Serial.print("\tV:");Serial.print(v*(float) V);
+
 		if( (v*(float) V) > 30.0 ){} //Serial.println("Warning! There is a large speed differential.");
 		else v *= (float) V;
 		if(distance > 0 ){
-
+			
 			if( v > 0 ){
 				if (driving1 > 0){
 					driving1 -= v* (float) V;
 				}else{
 					driving1 += v* (float) V;
-				}
+				}				
 			} else {
 				if (driving2 > 0){
 					driving2 -= v* (float) V;
@@ -360,7 +391,7 @@ positive value indicates left motor is faster than the right motor and vise vers
 					driving1 -= v* (float) V;
 				}else{
 					driving1 += v* (float) V;
-				}
+				}				
 			} else {
 				if (driving2 > 0){
 					driving2 -= v* (float) V;
@@ -368,20 +399,24 @@ positive value indicates left motor is faster than the right motor and vise vers
 					driving1 += v* (float) V;
 				}
 			}
-
+			
 		}
-
-		int16_t integral = comparator( ECLI, ECRI );
-
+		
+		int16_t integral;
+		if(mode == 1){
+			integral = comparator( ECLI, ECRI);
+		}else if(mode == 2){
+			integral = comparator2( ECLI, ECRI);
+		}
 		if( integral*  (float) I > 20 ){}  //Serial.println("Warning! There is a large integral differences.");
 		if(distance > 0 ){
-
+			
 			if( integral > 0 ){
 				if (driving1 > 0){
 					driving1 -= integral* (float) I;
 				}else{
 					driving2 += integral* (float) I;
-				}
+				}				
 			} else {
 				if (driving2 > 0){
 					driving2 -= integral* (float) I;
@@ -395,7 +430,7 @@ positive value indicates left motor is faster than the right motor and vise vers
 					driving1 -= integral* (float) I;
 				}else{
 					driving2 += integral* (float) I;
-				}
+				}				
 			} else {
 				if (driving2 < 0){
 					driving2 += integral* (float) I;
@@ -403,27 +438,38 @@ positive value indicates left motor is faster than the right motor and vise vers
 					driving1 -= integral* (float) I;
 				}
 			}
-
+			
 		}
-
-
+		Serial.print("\tECLO:");
+		Serial.print( (int32_t) ECLO);
+		Serial.print("\tECRO:");
+		Serial.print( (int32_t) ECRO);
+		Serial.print("\tV1:");
+		Serial.print(driving1);
+		Serial.print("\tV2:");
+		Serial.print(driving2);
+		Serial.println("");
 		if (distance > 0){
 			//forward motion
-			driving1 = constrain( driving1, 0, 112);
-			driving2 = constrain( driving2, 0, 127);
+			driving1 = constrain( driving1, 0, L_MOTOR_MAX);
+			driving2 = constrain( driving2, 0, R_MOTOR_MAX);
 		}else{
 			//backward motion
-			driving1 = constrain(driving1, -113, 0);
-			driving2 = constrain(driving2, -127, 0);
+			driving1 = constrain(driving1, -L_MOTOR_MAX, 0);
+			driving2 = constrain(driving2, -R_MOTOR_MAX, 0);
 		}
-
-
-
+		
+		
+		
 
 		motordriver.motor(1, driving1);
 		motordriver.motor(2, driving2);
 
-		//if the motor(s) stall for 0.1s, quit the iteration
+		// if((abs(ECL)-abs(left_targetcount)) <= 1 || (abs(ECL)-abs(left_targetcount)) <= 1){
+		// 	break;
+		// }
+
+		//if the motor(s) stall for 0.1s, quit the iteration 
 		if ( ECL == ECLO || ECR == ECRO ) {
 			if ( pause == 0 ) {
 				timestamp = millis();
@@ -436,8 +482,6 @@ positive value indicates left motor is faster than the right motor and vise vers
 			}
 		}
 
-		ECLO = ECL;
-		ECRO = ECR;
 		//if (debug == true)debugMode();
 		/*
 		Serial.print( (int32_t) ECL);
@@ -461,15 +505,13 @@ positive value indicates left motor is faster than the right motor and vise vers
 	global_x += ( C2D( ECL - ECLI) + C2D (ECR - ECRI) )/2 * cos(global_orientation);
 	global_y += ( C2D( ECL - ECLI) + C2D (ECR - ECRI) )/2 * sin(global_orientation);
 	//global_x = C2D (( ECL + ECR )/2) ;
+	Serial.println("done moving straight");
+		ECL = 0;
+	ECR = 0;
 
-	// end the timer
-	// and calculate the elapsed time
-	//currentTime = micros();
-  //elapsedTime = (currentTime - previousTime)/1000.0;
 }
 
 void driveToMpu(float dist){
-
   // time is calculated in microS
   long currentTime = 0;
   long previousTime =0;
@@ -478,29 +520,49 @@ void driveToMpu(float dist){
   float target = 0; // target is alway 0; robot need to have 0 yaw.
   float p = 0,i = 0,d = 0, pid = 0;
   int8_t drivingR, drivingL = 0;
-
+	float dispX=0;
+	float orientationDisp =0;
+	double speed = 90;
   // elapsed time is in ms
   float elapsedTime = 0;
 
   local_IMU_x = 0;
   local_IMU_y = 0;
 
+	target=dist;
   while(true){
 
     // start timer
     previousTime = micros();
 
     // update reading from mpu
-    accelgyro.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
-    theta = (float)gy * elapsedTime;
-    p = theta * kp;
+    accel = mpu.readNormalizeAccel();
+	gyro =  mpu.readNormalizeGyro();
+
+    theta = R2D((float)gyro.YAxis* elapsedTime) + 1.00;
+    p = theta * kp ;
     i = i + theta*ki;
 
-    pid = p + i;
+    pid = (p + i);
+		speed = (-target/(-target)) * speed ;
+		Serial.print("===pid:");Serial.print(pid);
+		Serial.print("\t===time: ");Serial.print(elapsedTime);
+		if(pid > 0){
+			drivingR = constrain((speed+pid), -R_MOTOR_MAX, R_MOTOR_MAX );// -MAX = MIn
+	    drivingL = constrain(speed, -L_MOTOR_MAX, L_MOTOR_MAX );// =MAX = min
+		}else if(pid < 0){
+			drivingR = constrain(speed, -R_MOTOR_MAX, R_MOTOR_MAX );// -MAX = MIn
+	    drivingL = constrain(speed+pid, -L_MOTOR_MAX, L_MOTOR_MAX );// =MAX = min
+		}
 
-    drivingR = constrain(pid, -R_MOTOR_MAX, R_MOTOR_MAX );// -MAX = MIn
-    drivingL = constrain(pid, -L_MOTOR_MAX, L_MOTOR_MAX );// =MAX = min
+		Serial.print("\t|DrivingR:");Serial.print(drivingR);
+		Serial.print("\tDrivingL:");Serial.print(drivingL);
+		Serial.print("\ttheta:");Serial.print(theta,6);
+		Serial.print("\tspeed:");Serial.print(speed);
+		Serial.print("\ttarget");Serial.print(target);
+		Serial.print("\tdisp:");Serial.println(dispX,6);
 
+		imuDebug();
     // check to see if run backward or forward
     if(dist > 0){
       drivingR = constrain( drivingR, 0, R_MOTOR_MAX);
@@ -518,18 +580,19 @@ void driveToMpu(float dist){
   	currentTime = micros();
     elapsedTime = (float)(currentTime - previousTime)/1000000.0;// convert to s
 
-    global_IMU_x += (1/2) * ((float)ax) * (elapsedTime * elapsedTime);
-    global_IMU_y += (1/2) * ((float)ay) * (elapsedTime * elapsedTime);
+		dispX = (0.5) * ((float)accel.XAxis) * (elapsedTime * elapsedTime);
+		orientationDisp = (0.5) * ((float)gyro.YAxis+0.20) * (elapsedTime * elapsedTime);
 
-		local_IMU_x = global_IMU_x;
-		local_IMU_y = global_IMU_y;
+		global_IMU_x += (float)dispX ;
+		//global_IMU_y += (float)disp;
 
+		target -= ((float)dispX);
 		// stop the drive when the bot has reached designated dist.
-		if(local_IMU_x == dist){
+		if(target < 0.0){
 			break;
 		}
   }// end true
-
+	Serial.println("end");
   motordriver.motor(1, 0);
   motordriver.motor(2, 0);
 }
@@ -558,8 +621,10 @@ bool turnWImu(int degree){
 		drivingConstrain -=  degree - abs(local_IMU_orientation - degree);
 
 		// update reading from mpu
-		accelgyro.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
-		double theta = (float)gy * elapsedTime;
+    accel = mpu.readNormalizeAccel();
+		gyro =  mpu.readNormalizeGyro();
+
+		double theta = (float)gyro.YAxis* elapsedTime;
 		global_IMU_orientation += R2D(theta); // convert to degree
 
 		local_IMU_orientation = global_IMU_orientation;
@@ -589,33 +654,127 @@ bool turnWImu(int degree){
 
 
 bool imuInit(void){
-  // initialize
-  ax = 0, ay = 0, az = 0, gx = 0 , gy = 0, gz = 0;
+	if(!mpu.begin(MPU6050_SCALE_2000DPS, MPU6050_RANGE_16G))
+	  {
+	    Serial.println("Could not find a valid MPU6050 sensor, check wiring!");
+	    delay(500);
+	  }
 
-  // join I2C bus (I2Cdev library doesn't do this automatically)
-#if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
-    Wire.begin();
-#elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
-    Fastwire::setup(400, true);
-#endif
+	mpu.setAccelPowerOnDelay(MPU6050_DELAY_3MS);
 
-    accelgyro.initialize();
-    return accelgyro.testConnection();
+	mpu.setIntFreeFallEnabled(false);
+	mpu.setIntZeroMotionEnabled(false);
+	mpu.setIntMotionEnabled(false);
+
+	mpu.setDHPFMode(MPU6050_DHPF_5HZ);
+
+	mpu.setMotionDetectionThreshold(2);
+	mpu.setMotionDetectionDuration(5);
+
+	mpu.setZeroMotionDetectionThreshold(4);
+	mpu.setZeroMotionDetectionDuration(2);
+
+}
+
+void imuDebug(void){
+	// update reading from mpu
+	// Serial.begin(9600);
+	accel = mpu.readNormalizeAccel();
+	gyro =  mpu.readNormalizeGyro();
+
+
+	Serial.print("x");Serial.print(accel.XAxis);
+	Serial.print("\ty");Serial.print(accel.YAxis);
+	Serial.print("\tz");Serial.print(accel.ZAxis);
+	Serial.print("\t|||x");Serial.print(gyro.XAxis);
+	Serial.print("\ty");Serial.print(gyro.YAxis);
+	Serial.print("\tz");Serial.println(gyro.ZAxis);
+	//delay(1000);
+	delay(100);
 }
 
 
-
-
 void debugMode (){
-	Serial.begin(9600);
+	//Serial.begin(9600);
 	Serial.print(na);
 	Serial.print("\t");
-	Serial.print("ECL\t");
+	Serial.print("ECL:");
 	Serial.print( (int32_t) ECL);
-	Serial.print("\tECR\t");
+	Serial.print("\tECR:");
 	Serial.print( (int32_t) ECR);
-	Serial.print("\tV1\t");
+	Serial.print("\tV1:");
 	Serial.print(driving1);
-	Serial.print("\tV2\t");
-	Serial.println(driving2);
+	Serial.print("\tV2:");
+	Serial.print(driving2);
+	Serial.print("\tleft_target");Serial.print(left_targetcount1);
+	Serial.print("\tright_target");Serial.print(right_targetcount1);
+	Serial.println("");
+}
+void driveToPID(float dist){
+	int driveR = 100*(dist/fabs(dist));
+	int driveL = 100*(dist/fabs(dist));
+	left_targetcount1 = (long)ECL+D2C( dist);
+	right_targetcount1 = (long)ECR+D2C( dist);
+	ECLT = 0;
+	ECRT = 0;
+	float error =0.0;
+	Serial.begin(9600);
+	while(true){
+		//debugMode();
+		Serial.print("ECL: ");Serial.print( (int32_t) ECL);
+		Serial.print("\tECR: ");Serial.print( (int32_t) ECR);
+		ECLT = (long)ECL;
+		ECRT = (long) ECR;
+		error = ECLT - ECRT;
+		Serial.print("\terror:");Serial.print(error);
+		driveR += round(error / kp);
+		Serial.print("\tdriveL: ");Serial.print(driveL);
+		Serial.print("\t#driveR: ");Serial.print(driveR);
+		Serial.println("");
+		driveL = constrain( (double) driveL, -127, 127);
+		driveR = constrain( (double) driveR, -127, 127);
+
+		if (dist > 0){
+			//forward motion
+			driveL = constrain( driveL, 0, 127);
+			driveR = constrain( driveR, 0, 127);
+		}else{
+			//backward motion
+			driveL = constrain(driveL, -127, 0);
+			driveR = constrain(driveR, -127, 0);
+		}
+
+		motordriver.motor(1, driveL);
+		motordriver.motor(2, driveR);
+
+
+		if(left_targetcount1-ECL <= 0){
+			motordriver.motor(1, 0);
+		}
+		if(right_targetcount1-ECR <= 0){
+			motordriver.motor(2, 0);
+		}
+		if(left_targetcount1-ECL <= 0 && right_targetcount1-ECR <= 0){
+			break;
+		}
+
+
+
+
+		// restart encoder to have fresh error value. 
+		ECLT = 0;
+		ECRT = 0; 
+	}
+	motordriver.motor(1, 0);
+	motordriver.motor(2, 0);
+
+}
+
+int sonarDistComparator(){
+	int  leftdistance = sonar[0].ping_cm();
+	int rightdistance = sonar[1].ping_cm();
+
+	return rightdistance-leftdistance; // with this year robot configuration #1 is the right. #0 is the left sonar 
+	//if return (-)# left > right 
+	// if retun (+)# right> left   
 }

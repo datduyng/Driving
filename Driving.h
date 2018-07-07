@@ -32,6 +32,7 @@ spec:
 
 #include <Arduino.h>
 #include <SabertoothSimplified.h>
+#include <NewPing.h>
 
 #include "I2Cdev.h"
 #include "MPU6050.h"
@@ -43,11 +44,23 @@ spec:
 #endif
 
 
+/*********************************Ultrasonic Sensor*********************/
+#define SONAR_NUM     2 // Number or sensors.
+#define MAX_DISTANCE 200 // Maximum distance (in cm) to ping.
+#define PING_INTERVAL 33 // Milliseconds between sensor pings (29ms is about the min to avoid cross-sensor echo).
+
+
+/***********************************************************************/
+
+
+/********************************motor driver***************************/
 //define constant
+#define WHEELDIAMETER 2.7345
 #define ENCODERREVOLUTION 227.1 * 48
-#define INCH2C 227.1 * 48 / ( 3 * 3.141592653589 * 2 * 2 )
-#define COUNTER2INCHE ( 3 * 3.14159265359 * 2 * 2) / (227.1 * 48)
-#define WHEELWIDTH 11.6875
+#define INCH2C ENCODERREVOLUTION / ( WHEELDIAMETER * 3.141592653589 * 2 * 2 )
+#define COUNTER2INCHE ( WHEELDIAMETER * 3.14159265359 * 2 * 2) / ENCODERREVOLUTION
+#define WHEELWIDTH 10.875
+
 
 #define IMU_DELAY (100)
 #define M_PI 3.141592653589
@@ -63,15 +76,23 @@ spec:
 //define default motor driver communication
 #define MOTOR_DRIVER  14    //Using Tx_3 pin (Serial3)
 
-#define R_MOTOR_MAX 110
-#define L_MOTOR_MAX 120
+/**
+ * adjust this value until the 2 encoder run at the same rate.
+ * in order this lib to work as expected. 
+ */
+#define R_MOTOR_MAX 102 
+#define L_MOTOR_MAX 110
+#define L_TARGET_DIST_OFFSET -0.4
+#define R_TARGET_DIST_OFFSET -0.7
+
+#define L_TARGET_ANGLE_OFFSET 0
+#define R_TARGET_ANGLE_OFFSET -5.0
 //define controller constant
-#define K1    0.440945		//LEFT controller constant
-#define K2    0.5			//RIGHT controller constant
-#define V	1.3			//speed controller constant
+#define K1 0.440945		//LEFT controller constant
+#define K2 0.45		//RIGHT controller constant
+#define V	0.3//1.3			//speed controller constant
 #define I	0.7		//integral controller constant
 
-// define PID constant
 #define kp 1.0
 #define ki 1.0
 #define kd 1.0
@@ -92,8 +113,8 @@ extern int16_t global_IMU_orientation;
 extern int16_t local_IMU_orientation;
 
 // accel and gyro reading
-extern int16_t ax, ay, az;
-extern int16_t gx, gy, gz;
+extern Vector accel;
+extern Vector gyro;
 
 //declare encoder counter
 extern volatile int64_t ECL;    //encoder counter - LEFT
@@ -108,9 +129,12 @@ extern bool debug1;
 static void counter1(void);
 static void counter2(void);
 
+/**********************************************************************/
+
+
 //public functions--------------------------------------------------------
 void dinit (void);		//default initiator, needed before using the functions from this library
-//void dinit ( uint8_t& pins );
+
 void driveto( float distance );
 void steer(int16_t toAngle );
 
@@ -132,12 +156,17 @@ int16_t C2R ( int64_t encoderCount );
  */
 int16_t R2D (float radian);
 
-// IMU function
-bool imuInit(void);
+/****************************sonar*****************************/
+/**
+ * This function compare the 2 dist retrieve by sonar. 
+ * in this configure. 
+ * sonar[0]: left sonar
+ * sonar[1]: right sonar
+ * return (positive) #: right > left 
+ * return (negative) #: left > right 
+ */
+int sonarDistComparator();
 
-// debug IMU function
-void displaySensorDetails(void);
-void displaySensorStatus(void);
-void displayCalStatus(void);
-
+/********unuse*/
+void imuDebug();
 #endif
