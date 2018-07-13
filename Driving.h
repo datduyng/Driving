@@ -167,6 +167,9 @@ int16_t R2D (float radian);
  */
 int sonarDistComparator();
 
+int getSonarLeftDistance();
+int getSonarRightDistance();
+
 /********unuse*/
 void imuDebug();
 #endif

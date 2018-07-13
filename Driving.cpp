@@ -86,8 +86,8 @@ void dinit (){
 	digitalWrite(EPOWERR, HIGH);
 	*/
 
-	//Serial.begin(9600);
 
+	Serial.begin(9600);
 	Serial3.begin(19200);
 	
 }
@@ -163,6 +163,9 @@ int16_t C2R ( int64_t encoderCount ){
 void steer ( int16_t toAngle ){
 	int LEFT_OFFSET = 0;
 	int RIGHT_OFFSET = 0;
+	ECL = 0;
+	ECR = 0;
+
 	if(toAngle > 0){// if turn right
 		LEFT_OFFSET = L_TARGET_ANGLE_OFFSET;
 		RIGHT_OFFSET = R_TARGET_ANGLE_OFFSET;
@@ -187,8 +190,8 @@ void steer ( int16_t toAngle ){
 	const int ECLI = ECL;
 	const int ECRI = ECR;
 
-  	Serial.print("left_targetcount");Serial.println((int32_t)left_targetcount);
-  	Serial.print("right_targetcount");Serial.println((int32_t)right_targetcount);
+  	//Serial.print("left_targetcount");Serial.println((int32_t)left_targetcount);
+  	//Serial.print("right_targetcount");Serial.println((int32_t)right_targetcount);
 
 	while ( true ) {
 		driving1 = constrain( (double) K1 * (left_targetcount - ECL), -L_MOTOR_MAX, L_MOTOR_MAX);
@@ -204,10 +207,10 @@ positive mean left motor is faster than the right motor and vise versa
 		ECRO = ECR;
 		if( (v*(float) V) > 30.0 ){} //Serial.println("Warning! There is a large speed differential.");
 		else v *= (float) V;
-		Serial.print("ECL:");
-		Serial.print( (int32_t) ECL);
-		Serial.print("\tECR:");
-		Serial.print( (int32_t) ECR);
+		// Serial.print("ECL:");
+		// Serial.print( (int32_t) ECL);
+		// Serial.print("\tECR:");
+		// Serial.print( (int32_t) ECR);
 		if(toAngle > 0 ){
 
 			if( v > 0 ){
@@ -239,15 +242,15 @@ positive mean left motor is faster than the right motor and vise versa
 			}
 
 		}
-		Serial.print("\tECLO:");
-		Serial.print( (int32_t) ECLO);
-		Serial.print("\tECRO:");
-		Serial.print( (int32_t) ECRO);
-		Serial.print("\tV1:");
-		Serial.print(driving1);
-		Serial.print("\tV2:");
-		Serial.print(driving2);
-		Serial.println("");
+		// Serial.print("\tECLO:");
+		// Serial.print( (int32_t) ECLO);
+		// Serial.print("\tECRO:");
+		// Serial.print( (int32_t) ECRO);
+		// Serial.print("\tV1:");
+		// Serial.print(driving1);
+		// Serial.print("\tV2:");
+		// Serial.print(driving2);
+		// Serial.println("");
 		int16_t integral = comparator2( ECLI, ECRI );
 
 		if (toAngle> 0){
@@ -265,17 +268,15 @@ positive mean left motor is faster than the right motor and vise versa
 		// if(ECL == left_targetcount || ECR == right_targetcount){
 		// 	break;
 		// }
-		Serial.println("steering");
 		//if the motor(s) stall for 0.1s, quit the iteration
 		if ( ECL == ECLO || ECR == ECRO ) {
-			break;
 			if ( pause == 0 ) {
 				timestamp = millis();
 				pause = 1;
 			} else {
 				if ( abs(millis() - timestamp) > 200 ) {
 					pause = 0;
-					Serial.println("break");
+					//Serial.println("break");
 					break;
 				}
 			}
@@ -313,9 +314,10 @@ positive mean left motor is faster than the right motor and vise versa
 }
 
 void driveto( float distance ) {
-
-	const int64_t left_targetcount = ECL+ D2C( distance + L_TARGET_DIST_OFFSET );
-	const int64_t right_targetcount = ECR + D2C( distance + R_TARGET_DIST_OFFSET );
+	ECL = 0;
+	ECR = 0;
+	const int64_t left_targetcount = D2C( distance + L_TARGET_DIST_OFFSET );
+	const int64_t right_targetcount = D2C( distance + R_TARGET_DIST_OFFSET );
 	driving1 = 0;
 	driving2 = 0;
 	na = 0;
@@ -328,9 +330,9 @@ void driveto( float distance ) {
 	const int ECLI = ECL;
 	const int ECRI = ECR;
 	int mode = 0; 
-	Serial.begin(9600);
-  	Serial.print("left_targetcount");Serial.println((int32_t)left_targetcount);
-  	Serial.print("right_targetcount");Serial.println((int32_t)right_targetcount);
+	// Serial.begin(9600);
+  	// Serial.print("left_targetcount");Serial.println((int32_t)left_targetcount);
+  	// Serial.print("right_targetcount");Serial.println((int32_t)right_targetcount);
 
 	// if(abs(abs(ECL) - abs(ECR)) > 100){
 	// 	Serial.println("used mode 2");
@@ -342,6 +344,7 @@ void driveto( float distance ) {
   	mode = 1;
 	while ( true ) {
 		// debugMode();
+		/****************DEBUG*****************/
 		driving1 = constrain( (double) K1 * (left_targetcount - ECL), -L_MOTOR_MAX, L_MOTOR_MAX);
 		driving2 = constrain( (double) K2 * (right_targetcount - ECR), -R_MOTOR_MAX, R_MOTOR_MAX);
 	
@@ -361,12 +364,12 @@ positive value indicates left motor is faster than the right motor and vise vers
 		ECLO = ECL;
 		ECRO = ECR;
 		
-		Serial.print("ECL:");
-		Serial.print( (int32_t) ECL);
-		Serial.print("\tECR:");
-		Serial.print( (int32_t) ECR);
-		Serial.print("\tdiff(v):");Serial.print(v);
-		Serial.print("\tV:");Serial.print(v*(float) V);
+		// Serial.print("ECL:");
+		// Serial.print( (int32_t) ECL);
+		// Serial.print("\tECR:");
+		// Serial.print( (int32_t) ECR);
+		// Serial.print("\tdiff(v):");Serial.print(v);
+		// Serial.print("\tV:");Serial.print(v*(float) V);
 
 		if( (v*(float) V) > 30.0 ){} //Serial.println("Warning! There is a large speed differential.");
 		else v *= (float) V;
@@ -440,15 +443,15 @@ positive value indicates left motor is faster than the right motor and vise vers
 			}
 			
 		}
-		Serial.print("\tECLO:");
-		Serial.print( (int32_t) ECLO);
-		Serial.print("\tECRO:");
-		Serial.print( (int32_t) ECRO);
-		Serial.print("\tV1:");
-		Serial.print(driving1);
-		Serial.print("\tV2:");
-		Serial.print(driving2);
-		Serial.println("");
+		// Serial.print("\tECLO:");
+		// Serial.print( (int32_t) ECLO);
+		// Serial.print("\tECRO:");
+		// Serial.print( (int32_t) ECRO);
+		// Serial.print("\tV1:");
+		// Serial.print(driving1);
+		// Serial.print("\tV2:");
+		// Serial.print(driving2);
+		// Serial.println("");
 		if (distance > 0){
 			//forward motion
 			driving1 = constrain( driving1, 0, L_MOTOR_MAX);
@@ -505,8 +508,9 @@ positive value indicates left motor is faster than the right motor and vise vers
 	global_x += ( C2D( ECL - ECLI) + C2D (ECR - ECRI) )/2 * cos(global_orientation);
 	global_y += ( C2D( ECL - ECLI) + C2D (ECR - ECRI) )/2 * sin(global_orientation);
 	//global_x = C2D (( ECL + ECR )/2) ;
-	Serial.println("done moving straight");
-		ECL = 0;
+	// Serial.println("done moving straight");
+	
+	ECL = 0;
 	ECR = 0;
 
 }
@@ -718,7 +722,7 @@ void driveToPID(float dist){
 	ECLT = 0;
 	ECRT = 0;
 	float error =0.0;
-	Serial.begin(9600);
+	//Serial.begin(9600);
 	while(true){
 		//debugMode();
 		Serial.print("ECL: ");Serial.print( (int32_t) ECL);
@@ -771,10 +775,28 @@ void driveToPID(float dist){
 }
 
 int sonarDistComparator(){
-	int  leftdistance = sonar[0].ping_cm();
-	int rightdistance = sonar[1].ping_cm();
+	int  leftDistance = sonar[0].ping_cm();
+	int rightDistance = sonar[1].ping_cm();
+	if(rightDistance == 0) return 1111; // return positive number/malfunction or out of range 
+	if(leftDistance == 0) return -1111; // return positive number/malfunction or out of range 
+	
+	  Serial.print(leftDistance);Serial.print(",");
+      Serial.print(rightDistance);
+      Serial.println("");
 
-	return rightdistance-leftdistance; // with this year robot configuration #1 is the right. #0 is the left sonar 
+
+	// Serial.print(leftDistance);Serial.print(",");
+	// Serial.print(rightDistance);Serial.println("");
+	return rightDistance-leftDistance; // with this year robot configuration #1 is the right. #0 is the left sonar 
 	//if return (-)# left > right 
 	// if retun (+)# right> left   
 }
+
+int getSonarLeftDistance(){
+	return sonar[0].ping_cm();
+}
+
+int getSonarRightDistance(){
+	return sonar[1].ping_cm();
+}
+
