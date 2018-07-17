@@ -23,6 +23,8 @@ debugMode	KEYWORD2
 debug	KEYWORD2
 imuInit KEYWORD2
 imuDebug KEYWORD2
+goParallel KEYWORD2
+sonarDistComparator KEYWORD2
 
 #######################################
 # Constants (LITERAL1)

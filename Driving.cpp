@@ -11,7 +11,7 @@ Motor Driver: Sabertooth Motor Driver
 
 */
 
-#include <Driving.h>
+#include "Driving.h"
 #include <math.h>
 
 SabertoothSimplified motordriver(Serial3);
@@ -170,8 +170,8 @@ void steer ( int16_t toAngle ){
 		LEFT_OFFSET = L_TARGET_ANGLE_OFFSET;
 		RIGHT_OFFSET = R_TARGET_ANGLE_OFFSET;
 	}else{// if turn left
-		LEFT_OFFSET = L_TARGET_ANGLE_OFFSET;
-		RIGHT_OFFSET = -R_TARGET_ANGLE_OFFSET-1.0;
+		LEFT_OFFSET = -L_TARGET_ANGLE_OFFSET;
+		RIGHT_OFFSET = -R_TARGET_ANGLE_OFFSET;
 	}
 	const int64_t left_targetcount = ECL + R2C(toAngle+LEFT_OFFSET);
 	const int64_t right_targetcount = ECR - R2C(toAngle+RIGHT_OFFSET);
@@ -189,7 +189,7 @@ void steer ( int16_t toAngle ){
 	int ECRO = -1;
 	const int ECLI = ECL;
 	const int ECRI = ECR;
-
+	int counter = 0; 
   	//Serial.print("left_targetcount");Serial.println((int32_t)left_targetcount);
   	//Serial.print("right_targetcount");Serial.println((int32_t)right_targetcount);
 
@@ -260,6 +260,11 @@ positive mean left motor is faster than the right motor and vise versa
 			driving1 = constrain(driving1, -L_MOTOR_MAX, 0);
 			driving2 = constrain(driving2, 0, R_MOTOR_MAX);
 		}
+		if (counter < 10){
+			driving1 -= 20;
+			driving2 -= 20;
+		}
+		counter ++;
 
 
 		motordriver.motor(1, driving1);
@@ -774,29 +779,50 @@ void driveToPID(float dist){
 
 }
 
+void goParallel(float dispGoal,int leftDist, int rightDist){
+	float paralelOffsetInInches = (rightDist - leftDist)/INCH_TO_CM;
+	Serial.println("=====++++++++++++++======");
+	Serial.print("parallelOffset:");Serial.print(paralelOffsetInInches);
+	Serial.print("dispGoal");Serial.print(dispGoal);
+	Serial.println();
+	if(abs(paralelOffsetInInches) > 300){// undetermine case. 
+		driveto(dispGoal);
+		return;
+	}
+	float turnInRad = paralelOffsetInInches/dispGoal;
+	Serial.print("turnInRad:");Serial.print(turnInRad);
+	Serial.println("==========");
+	float magnitude = sqrt((paralelOffsetInInches*paralelOffsetInInches)+(dispGoal*dispGoal));
+	steer(R2D(turnInRad));
+	delay(100);
+	driveto(magnitude);
+	delay(100);
+	steer(-R2D(turnInRad)); // steer back to be parallel. 
+
+}
+
 int sonarDistComparator(){
-	int  leftDistance = sonar[0].ping_cm();
-	int rightDistance = sonar[1].ping_cm();
+	int  leftDistance = getSonarLeftDistance();
+	int rightDistance = getSonarRightDistance();
 	if(rightDistance == 0) return 1111; // return positive number/malfunction or out of range 
 	if(leftDistance == 0) return -1111; // return positive number/malfunction or out of range 
 	
-	  Serial.print(leftDistance);Serial.print(",");
-      Serial.print(rightDistance);
-      Serial.println("");
-
-
-	// Serial.print(leftDistance);Serial.print(",");
-	// Serial.print(rightDistance);Serial.println("");
+	Serial.println();
+	Serial.print(rightDistance);Serial.print(",");
+	Serial.print(leftDistance);Serial.println();
 	return rightDistance-leftDistance; // with this year robot configuration #1 is the right. #0 is the left sonar 
 	//if return (-)# left > right 
 	// if retun (+)# right> left   
 }
 
 int getSonarLeftDistance(){
-	return sonar[0].ping_cm();
+	int result = sonar[0].ping_cm() + left_offset;
+	if(result < 0) return 0;
+	else return result;
 }
 
 int getSonarRightDistance(){
-	return sonar[1].ping_cm();
+	int result = sonar[1].ping_cm() + right_offset;
+	if(result < 0) return 0;
+	else return result;
 }
-
