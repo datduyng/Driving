@@ -44,12 +44,14 @@ spec:
 #endif
 
 
-/*********************************Ultrasonic Sensor*********************/
-#define SONAR_NUM     2 // Number or sensors.
+/*********************************Ultrasonic Sensor constant*********************/
+#define SONAR_NUM     3 // Number or sensors.
 #define MAX_DISTANCE 200 // Maximum distance (in cm) to ping.
 #define PING_INTERVAL 33 // Milliseconds between sensor pings (29ms is about the min to avoid cross-sensor echo).
-#define left_offset  -1
-#define right_offset  1
+#define BACK_OFFSET_TO_LEFT_SONAR 0 
+#define LEFT_SONAR_OFFSET  -1
+#define RIGHT_SONAR_OFFSET  1
+#define BACK_SONAR_OFFSET  0
 
 /***********************************************************************/
 
@@ -85,13 +87,13 @@ spec:
  */
 #define R_MOTOR_MAX 98
 #define L_MOTOR_MAX 104
-#define L_TARGET_DIST_OFFSET 0.2
+#define L_TARGET_DIST_OFFSET 0.1
 #define R_TARGET_DIST_OFFSET 0
 
 #define L_TARGET_ANGLE_OFFSET 5
 #define R_TARGET_ANGLE_OFFSET 4
 //define controller constant
-#define K1 0.440945		//LEFT controller constant
+#define K1 0.438		//LEFT controller constant
 #define K2 0.45743	//RIGHT controller constant
 #define V	0.3//1.3			//speed controller constant
 #define I	0.7		//integral controller constant
@@ -149,6 +151,16 @@ void steer(int16_t toAngle );
  */ 
 void goParallel(float dispGoal,int leftDist, int rightDist);
 
+/**
+ * This method use 'getSonarBackDistance();' and 'getSonarLeftDistance();'
+ * to check if the 2 dist are equal. if not robot is slanted. so correct it.
+ * if 2 dist are equal. then don't do anything. 
+ * pram: none
+ * return: none.
+ * consta
+ */
+void checkParallel();
+
 
 void debugMode(void);
 void debug(bool);
@@ -175,13 +187,18 @@ int16_t R2D (float radian);
  * in this configure. 
  * sonar[0]: left sonar
  * sonar[1]: right sonar
+ * sonar[2]: back sonar
  * return (positive) #: right > left 
  * return (negative) #: left > right 
  */
+
+
 int sonarDistComparator();
 
 int getSonarLeftDistance();
 int getSonarRightDistance();
+int getSonarBackDistance();
+void printAccuracySonar();
 
 /********unuse*/
 void imuDebug();

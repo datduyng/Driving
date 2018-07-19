@@ -17,8 +17,9 @@ Motor Driver: Sabertooth Motor Driver
 SabertoothSimplified motordriver(Serial3);
 MPU6050 mpu;
 NewPing sonar[SONAR_NUM] = {     // Sensor object array.
-  NewPing(8, 9, MAX_DISTANCE), // Each sensor's trigger pin, echo pin, and max distance to ping.
-  NewPing(10, 11, MAX_DISTANCE)
+  NewPing(8, 9, MAX_DISTANCE), // Each sensor's trigger pin, echo pin, and max distance to ping. .// left 
+  NewPing(10, 11, MAX_DISTANCE), // right
+  NewPing(12, 13, MAX_DISTANCE) // back 
 };
 
 
@@ -785,7 +786,7 @@ void goParallel(float dispGoal,int leftDist, int rightDist){
 	Serial.print("parallelOffset:");Serial.print(paralelOffsetInInches);
 	Serial.print("dispGoal");Serial.print(dispGoal);
 	Serial.println();
-	if(abs(paralelOffsetInInches) > 300){// undetermine case. 
+	if(abs(paralelOffsetInInches) > 200){// undetermine case. 
 		driveto(dispGoal);
 		return;
 	}
@@ -799,6 +800,21 @@ void goParallel(float dispGoal,int leftDist, int rightDist){
 	delay(100);
 	steer(-R2D(turnInRad)); // steer back to be parallel. 
 
+}
+
+void checkParallel(){
+	int leftDistance = getSonarLeftDistance();
+	int backDistance = getSonarBackDistance();
+	while(abs( leftDistance- backDistance) >= 3 ){
+		Serial.print("checking parallel");Serial.println(abs( leftDistance- backDistance));
+		leftDistance = getSonarLeftDistance();
+		backDistance = getSonarBackDistance();
+		if(leftDistance > backDistance){
+			steer(1);
+		}else{
+			steer(-1);
+		}
+	}
 }
 
 int sonarDistComparator(){
@@ -816,13 +832,20 @@ int sonarDistComparator(){
 }
 
 int getSonarLeftDistance(){
-	int result = sonar[0].ping_cm() + left_offset;
+	int result = sonar[0].ping_cm() + LEFT_SONAR_OFFSET;
 	if(result < 0) return 0;
 	else return result;
 }
 
 int getSonarRightDistance(){
-	int result = sonar[1].ping_cm() + right_offset;
+	int result = sonar[1].ping_cm() + RIGHT_SONAR_OFFSET;
 	if(result < 0) return 0;
 	else return result;
 }
+
+int getSonarBackDistance(){
+	int result = sonar[2].ping_cm() + BACK_SONAR_OFFSET;
+	if(result < 0) return 0;
+	else return result;
+}
+
