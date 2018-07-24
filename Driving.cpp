@@ -19,8 +19,11 @@ MPU6050 mpu;
 NewPing sonar[SONAR_NUM] = {     // Sensor object array.
   NewPing(8, 9, MAX_DISTANCE), // Each sensor's trigger pin, echo pin, and max distance to ping. .// left 
   NewPing(10, 11, MAX_DISTANCE), // right
-  NewPing(12, 13, MAX_DISTANCE) // back 
+  NewPing(12, 13, MAX_DISTANCE), // back left 
+  NewPing(26, 28, MAX_DISTANCE) // front sonar
 };
+
+int SONAR_OFFSET[SONAR_NUM] ; 
 
 
 
@@ -88,7 +91,7 @@ void dinit (){
 	*/
 
 
-	Serial.begin(9600);
+	// Serial.begin(9600);
 	Serial3.begin(19200);
 	
 }
@@ -324,6 +327,9 @@ void driveto( float distance ) {
 	ECR = 0;
 	const int64_t left_targetcount = D2C( distance + L_TARGET_DIST_OFFSET );
 	const int64_t right_targetcount = D2C( distance + R_TARGET_DIST_OFFSET );
+
+	// deposite to global_x displacement.
+	global_y += distance; 
 	driving1 = 0;
 	driving2 = 0;
 	na = 0;
@@ -554,9 +560,9 @@ void driveToMpu(float dist){
     i = i + theta*ki;
 
     pid = (p + i);
-		speed = (-target/(-target)) * speed ;
-		Serial.print("===pid:");Serial.print(pid);
-		Serial.print("\t===time: ");Serial.print(elapsedTime);
+		// speed = (-target/(-target)) * speed ;
+		// Serial.print("===pid:");Serial.print(pid);
+		// Serial.print("\t===time: ");Serial.print(elapsedTime);
 		if(pid > 0){
 			drivingR = constrain((speed+pid), -R_MOTOR_MAX, R_MOTOR_MAX );// -MAX = MIn
 	    drivingL = constrain(speed, -L_MOTOR_MAX, L_MOTOR_MAX );// =MAX = min
@@ -565,12 +571,12 @@ void driveToMpu(float dist){
 	    drivingL = constrain(speed+pid, -L_MOTOR_MAX, L_MOTOR_MAX );// =MAX = min
 		}
 
-		Serial.print("\t|DrivingR:");Serial.print(drivingR);
-		Serial.print("\tDrivingL:");Serial.print(drivingL);
-		Serial.print("\ttheta:");Serial.print(theta,6);
-		Serial.print("\tspeed:");Serial.print(speed);
-		Serial.print("\ttarget");Serial.print(target);
-		Serial.print("\tdisp:");Serial.println(dispX,6);
+		// Serial.print("\t|DrivingR:");Serial.print(drivingR);
+		// Serial.print("\tDrivingL:");Serial.print(drivingL);
+		// Serial.print("\ttheta:");Serial.print(theta,6);
+		// Serial.print("\tspeed:");Serial.print(speed);
+		// Serial.print("\ttarget");Serial.print(target);
+		// Serial.print("\tdisp:");Serial.println(dispX,6);
 
 		imuDebug();
     // check to see if run backward or forward
@@ -602,7 +608,7 @@ void driveToMpu(float dist){
 			break;
 		}
   }// end true
-	Serial.println("end");
+	// Serial.println("end");
   motordriver.motor(1, 0);
   motordriver.motor(2, 0);
 }
@@ -782,17 +788,17 @@ void driveToPID(float dist){
 
 void goParallel(float dispGoal,int leftDist, int rightDist){
 	float paralelOffsetInInches = (rightDist - leftDist)/INCH_TO_CM;
-	Serial.println("=====++++++++++++++======");
-	Serial.print("parallelOffset:");Serial.print(paralelOffsetInInches);
-	Serial.print("dispGoal");Serial.print(dispGoal);
+	// Serial.println("=====++++++++++++++======");
+	// Serial.print("parallelOffset:");Serial.print(paralelOffsetInInches);
+	// Serial.print("dispGoal");Serial.print(dispGoal);
 	Serial.println();
 	if(abs(paralelOffsetInInches) > 200){// undetermine case. 
 		driveto(dispGoal);
 		return;
 	}
 	float turnInRad = paralelOffsetInInches/dispGoal;
-	Serial.print("turnInRad:");Serial.print(turnInRad);
-	Serial.println("==========");
+	// Serial.print("turnInRad:");Serial.print(turnInRad);
+	// Serial.println("==========");
 	float magnitude = sqrt((paralelOffsetInInches*paralelOffsetInInches)+(dispGoal*dispGoal));
 	steer(R2D(turnInRad));
 	delay(100);
@@ -801,25 +807,24 @@ void goParallel(float dispGoal,int leftDist, int rightDist){
 	steer(-R2D(turnInRad)); // steer back to be parallel. 
 
 }
+int checkParallel(){
+	int left = getSonarLeft();
+	int back = getSonarLeftBack();
 
-void checkParallel(){
-	int leftDistance = getSonarLeftDistance();
-	int backDistance = getSonarBackDistance();
-	while(abs( leftDistance- backDistance) >= 3 ){
-		Serial.print("checking parallel");Serial.println(abs( leftDistance- backDistance));
-		leftDistance = getSonarLeftDistance();
-		backDistance = getSonarBackDistance();
-		if(leftDistance > backDistance){
-			steer(1);
-		}else{
-			steer(-1);
-		}
+	//error check if there is malfunction in sonar 
+	// or the bot is straight already. 
+	if(abs(back-left) == 0 || left == 0 || back == 0){
+		Serial.println();
+		return 0;
 	}
-}
+	int turnAngle = R2D(asin((float)(back-left)/BACK_TO_LEFT_SONAR));
+	steer(turnAngle);
+	return turnAngle;
+}	
 
 int sonarDistComparator(){
-	int  leftDistance = getSonarLeftDistance();
-	int rightDistance = getSonarRightDistance();
+	int  leftDistance = getSonarLeft();
+	int rightDistance = getSonarRight();
 	if(rightDistance == 0) return 1111; // return positive number/malfunction or out of range 
 	if(leftDistance == 0) return -1111; // return positive number/malfunction or out of range 
 	
@@ -831,21 +836,49 @@ int sonarDistComparator(){
 	// if retun (+)# right> left   
 }
 
-int getSonarLeftDistance(){
-	int result = sonar[0].ping_cm() + LEFT_SONAR_OFFSET;
+int getSonarLeft(){
+	unsigned int echoTime = sonar[0].ping() - 40;          // Calls the ping method and returns with the ping echo distance in uS.
+	int result= NewPingConvert(echoTime, US_ROUNDTRIP_CM) + SONAR_OFFSET[0];
+	//int result = sonar[0].ping_cm() + LEFT_SONAR_OFFSET;
 	if(result < 0) return 0;
 	else return result;
 }
 
-int getSonarRightDistance(){
-	int result = sonar[1].ping_cm() + RIGHT_SONAR_OFFSET;
+int getSonarRight(){
+	int result = sonar[1].ping_cm() + SONAR_OFFSET[1];
 	if(result < 0) return 0;
 	else return result;
 }
 
-int getSonarBackDistance(){
-	int result = sonar[2].ping_cm() + BACK_SONAR_OFFSET;
+int getSonarLeftBack(){
+	int result = sonar[2].ping_cm() + SONAR_OFFSET[2];
 	if(result < 0) return 0;
 	else return result;
+}
+
+int getSonarFront(){
+	int result = sonar[3].ping_cm() + SONAR_OFFSET[3];
+	if(result < 0) return 0;
+	else return result;
+}
+
+/**
+ * This method check the front Dist travel of the bot 
+ * Using the front ultrasonic dist on the bot. 
+ * Return frontDistTravel in inch.
+ *
+ * Param:  None. 
+ */ 
+float checkFrontDistTravel(){
+	int sideOffset = checkParallel(); 
+	return (float)getSonarFront();
+}
+
+void setSonarOffset(int *offset){
+
+	for(int i = 0;i < SONAR_NUM; i++){
+		SONAR_OFFSET[i] = offset[i];
+	}
+	//2,-2,0 for the 1st robot 
 }
 

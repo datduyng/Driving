@@ -15,7 +15,6 @@ Modified by: Dat Nguyen
 Date :06/23/18
 Version: 2.0
 added feature:
-  - added accelerometer.
   - this program will allow mobile platform move accordingly to encoder tick and
   Accerlorometer at the same time.
   - This program will allow mobile platform turn according to IMU reading.
@@ -25,6 +24,10 @@ spec:
   - Adafruit 9-DOF Absolute Orientation IMU Fusion Breakout - BNO055(adafruit)
     - https://www.adafruit.com/product/2472
   - HC-SR04 ultrasonic sensor
+
+NOTE: sonar unit is cm (for accuracy reason)
+      wheel and ecoder unit is in inches. 
+
 */
 
 #ifndef Driving_h
@@ -43,15 +46,17 @@ spec:
     #include "Wire.h"
 #endif
 
+ #define MODULE_VISIBILITY  __attribute__ ((visibility ("hidden")))
+ #define PUBLIC_VISIBILITY  __attribute__ ((visibility ("default")))
+
 
 /*********************************Ultrasonic Sensor constant*********************/
-#define SONAR_NUM     3 // Number or sensors.
+#define SONAR_NUM     4 // Number or sensors.
 #define MAX_DISTANCE 200 // Maximum distance (in cm) to ping.
 #define PING_INTERVAL 33 // Milliseconds between sensor pings (29ms is about the min to avoid cross-sensor echo).
-#define BACK_OFFSET_TO_LEFT_SONAR 0 
-#define LEFT_SONAR_OFFSET  -1
-#define RIGHT_SONAR_OFFSET  1
-#define BACK_SONAR_OFFSET  0
+#define BACK_TO_LEFT_SONAR 16.5
+
+extern int SONAR_OFFSET[SONAR_NUM]; 
 
 /***********************************************************************/
 
@@ -152,15 +157,24 @@ void steer(int16_t toAngle );
 void goParallel(float dispGoal,int leftDist, int rightDist);
 
 /**
- * This method use 'getSonarBackDistance();' and 'getSonarLeftDistance();'
- * to check if the 2 dist are equal. if not robot is slanted. so correct it.
- * if 2 dist are equal. then don't do anything. 
- * pram: none
- * return: none.
- * consta
+ * This method check if the mobile platform is parralel 
+ * with the wall. 
+ * if no, then approximate the angle that it is offset
+ * by retrieving data from left and back sonar
+ * accuracy: +- > 3.4 degree
+ * return turnAngle( the degree that bot will turn for error checking)
+ * param None
  */
-void checkParallel();
+int checkParallel();
 
+/**
+ * This method check the front Dist travel of the bot 
+ * Using the front ultrasonic dist on the bot. 
+ * Return frontDistTravel in inch.
+ *
+ * Param:  None. 
+ */ 
+float checkFrontDistTravel();
 
 void debugMode(void);
 void debug(bool);
@@ -191,14 +205,13 @@ int16_t R2D (float radian);
  * return (positive) #: right > left 
  * return (negative) #: left > right 
  */
-
-
 int sonarDistComparator();
-
-int getSonarLeftDistance();
-int getSonarRightDistance();
-int getSonarBackDistance();
+int getSonarLeft();
+int getSonarRight();
+int getSonarLeftBack();
+void setSonarOffset(int *sonar);
 void printAccuracySonar();
+
 
 /********unuse*/
 void imuDebug();

@@ -25,6 +25,11 @@ imuInit KEYWORD2
 imuDebug KEYWORD2
 goParallel KEYWORD2
 sonarDistComparator KEYWORD2
+getSonarLeftDistance KEYWORD2
+getSonarRightDistance KEYWORD2
+getSonarBackDistance KEYWORD2
+setSonarOffset KEYWORD2
+checkParallel KEYWORD2
 
 #######################################
 # Constants (LITERAL1)
