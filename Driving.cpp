@@ -9,18 +9,32 @@ displacement-encoder count convertor, speed comparator and path tracking.
 Micro-controller Board: Arduino Mega
 Motor Driver: Sabertooth Motor Driver
 
+
+|						  |
+|						  |
+|						  |
+|		|----------|	  |
+|		|		   |	  |
+|		|		   |	  |
+|		|		   |	  |
+|		|		   |	  |
+|		|----------|	  |
+|						  |
+
 */
 
 #include "Driving.h"
 #include <math.h>
-
+//even: trigger
+//odd: echo. 
 SabertoothSimplified motordriver(Serial3);
 MPU6050 mpu;
 NewPing sonar[SONAR_NUM] = {     // Sensor object array.
-  NewPing(8, 9, MAX_DISTANCE), // Each sensor's trigger pin, echo pin, and max distance to ping. .// left 
-  NewPing(10, 11, MAX_DISTANCE), // right
-  NewPing(12, 13, MAX_DISTANCE), // back left 
-  NewPing(26, 28, MAX_DISTANCE) // front sonar
+  NewPing(22, 23, MAX_DISTANCE), // Each sensor's trigger pin, echo pin, and max distance to ping. .// left 
+  NewPing(24, 25, MAX_DISTANCE), // right
+  NewPing(26, 27, MAX_DISTANCE), // back left 
+  NewPing(28, 29, MAX_DISTANCE), // front sonar
+  NewPing(30, 31, MAX_DISTANCE)  // back sonar
 };
 
 int SONAR_OFFSET[SONAR_NUM] ; 
@@ -73,15 +87,15 @@ void dinit (){
 	pinMode(ECRB, INPUT);   //RIGHT encoder channel B as input
 	digitalWrite(ECRB, LOW);  //Pull down RIGHT channel B
 
-	//Encoder's Vcc
-	pinMode(24, OUTPUT);
-	pinMode(25, OUTPUT);
-	pinMode(26, OUTPUT);
-	pinMode(27, OUTPUT);
-	digitalWrite(24, HIGH);
-	digitalWrite(25, HIGH);
-	digitalWrite(26, LOW);
-	digitalWrite(27, LOW);
+	// //Encoder's Vcc
+	pinMode(42, OUTPUT);
+	pinMode(43, OUTPUT);
+	pinMode(44, OUTPUT);
+	pinMode(45, OUTPUT);
+	digitalWrite(42, HIGH);
+	digitalWrite(44, HIGH);
+	digitalWrite(43, LOW);
+	digitalWrite(45, LOW);
 
 	/*
 	pinMode(EPOWERL, OUTPUT);
@@ -787,12 +801,11 @@ void driveToPID(float dist){
 }
 
 void goParallel(float dispGoal,int leftDist, int rightDist){
-	float paralelOffsetInInches = (rightDist - leftDist)/INCH_TO_CM;
+	float paralelOffsetInInches = ((float)(rightDist - leftDist)/CM_TO_INCH)/2;
 	// Serial.println("=====++++++++++++++======");
 	// Serial.print("parallelOffset:");Serial.print(paralelOffsetInInches);
 	// Serial.print("dispGoal");Serial.print(dispGoal);
-	Serial.println();
-	if(abs(paralelOffsetInInches) > 200){// undetermine case. 
+	if(abs(paralelOffsetInInches) > 7.0){// undetermine case. 
 		driveto(dispGoal);
 		return;
 	}
@@ -804,17 +817,17 @@ void goParallel(float dispGoal,int leftDist, int rightDist){
 	delay(100);
 	driveto(magnitude);
 	delay(100);
-	steer(-R2D(turnInRad)); // steer back to be parallel. 
+	steer(-R2D(turnInRad)); // steer back to be parallel.
+	checkParallel(); 
 
 }
 int checkParallel(){
-	int left = getSonarLeft();
-	int back = getSonarLeftBack();
+	float left = getSonarLeft();
+	float back = getSonarLeftBack();
 
 	//error check if there is malfunction in sonar 
 	// or the bot is straight already. 
-	if(abs(back-left) == 0 || left == 0 || back == 0){
-		Serial.println();
+	if(abs(back-left)/2 <= 3 || left == 0 || back == 0){
 		return 0;
 	}
 	int turnAngle = R2D(asin((float)(back-left)/BACK_TO_LEFT_SONAR));
@@ -828,18 +841,16 @@ int sonarDistComparator(){
 	if(rightDistance == 0) return 1111; // return positive number/malfunction or out of range 
 	if(leftDistance == 0) return -1111; // return positive number/malfunction or out of range 
 	
-	Serial.println();
-	Serial.print(rightDistance);Serial.print(",");
-	Serial.print(leftDistance);Serial.println();
-	return rightDistance-leftDistance; // with this year robot configuration #1 is the right. #0 is the left sonar 
+	//divide by 2 to get offset from midpoint. 
+	return (rightDistance-leftDistance)/2; // with this year robot configuration #1 is the right. #0 is the left sonar 
 	//if return (-)# left > right 
 	// if retun (+)# right> left   
 }
 
 int getSonarLeft(){
-	unsigned int echoTime = sonar[0].ping() - 40;          // Calls the ping method and returns with the ping echo distance in uS.
-	int result= NewPingConvert(echoTime, US_ROUNDTRIP_CM) + SONAR_OFFSET[0];
-	//int result = sonar[0].ping_cm() + LEFT_SONAR_OFFSET;
+	int result = sonar[0].ping_cm() + SONAR_OFFSET[0];
+
+
 	if(result < 0) return 0;
 	else return result;
 }
@@ -856,22 +867,34 @@ int getSonarLeftBack(){
 	else return result;
 }
 
+
 int getSonarFront(){
 	int result = sonar[3].ping_cm() + SONAR_OFFSET[3];
+	
+	if(result >= 7 && result <= 16){//y=x+1 
+		result = result + 1 ;
+	}else if(result >= 22 && result <= 32){//y =.82+2.6995
+		int bias = 0;// check excel sheet.
+		result = round((0.82*(float)result) + 2.6995 - bias);
+
+		//after using model collected offset 
+		if(result >= 32 && result <= 34){//y= .75x + 5.75 
+			result = result * 0.75 + 5.75;
+		}
+	}else if(result >= 33 && result <= 37){//y=x-1
+		result = result - 1;
+	}
+
+	// check if <0 then sonar has malfunction.
 	if(result < 0) return 0;
 	else return result;
 }
 
-/**
- * This method check the front Dist travel of the bot 
- * Using the front ultrasonic dist on the bot. 
- * Return frontDistTravel in inch.
- *
- * Param:  None. 
- */ 
-float checkFrontDistTravel(){
-	int sideOffset = checkParallel(); 
-	return (float)getSonarFront();
+int getSonarBack(){
+	int result = sonar[4].ping_cm() + SONAR_OFFSET[4];
+	if(result < 0) return 0;
+	if(result >= 17) return result - 1;
+	else result;
 }
 
 void setSonarOffset(int *offset){
@@ -881,4 +904,43 @@ void setSonarOffset(int *offset){
 	}
 	//2,-2,0 for the 1st robot 
 }
+
+
+
+
+void drivetoSonarFeedback(float dist, char sonarUse, bool straight){
+	int beforeFrontDist ;
+	int beforeBackDist;
+	int afterFrontDist;
+	int afterBackDist; 
+
+	//make sure the bot is parallel.
+	if(straight == true) checkParallel();
+
+	//see which sonar to use for feedback.
+	if(sonarUse == 'f') beforeFrontDist = getSonarFront();
+	else if(sonarUse == 'b') beforeBackDist = getSonarBack();
+
+	if(straight == true) checkParallel();
+	driveto(dist);
+
+	//see which sonar to use for feedback.
+	if(sonarUse == 'f') afterFrontDist = getSonarFront();
+	else if(sonarUse == 'b') afterBackDist = getSonarBack();
+
+	//malfunction sonar reading.
+	if(beforeFrontDist == 0 || afterFrontDist==0){
+		return;
+	}
+	//get actual disp by sonar
+	float actualFrontDisp =(float)(beforeFrontDist- afterFrontDist)/CM_TO_INCH;
+	float actualBackDisp =(float)(afterBackDist - beforeBackDist)/CM_TO_INCH; 
+
+	if(sonarUse == 'f') driveto(actualFrontDisp-dist);
+
+	//TODO : WRONG LOGIC 	
+	else if(sonarUse == 'b') driveto(dist - actualBackDisp);
+
+
+}	
 

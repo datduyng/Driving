@@ -18,6 +18,7 @@ global_orientation	KEYWORD1
 
 dinit	KEYWORD2
 driveto	KEYWORD2
+drivetoSonarFeedback KEYWORD2
 steer	KEYWORD2
 debugMode	KEYWORD2
 debug	KEYWORD2

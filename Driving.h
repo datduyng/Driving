@@ -12,7 +12,7 @@ feature:
 
 
 Modified by: Dat Nguyen
-Date :06/23/18
+Date :07/25/18
 Version: 2.0
 added feature:
   - this program will allow mobile platform move accordingly to encoder tick and
@@ -21,12 +21,14 @@ added feature:
 
 spec:
   - 227:1 Metal Gearmotor 25Dx56L mm MP 12v with 48 CPR Encoer(popolu.com)
-  - Adafruit 9-DOF Absolute Orientation IMU Fusion Breakout - BNO055(adafruit)
-    - https://www.adafruit.com/product/2472
   - HC-SR04 ultrasonic sensor
-
+  
 NOTE: sonar unit is cm (for accuracy reason)
       wheel and ecoder unit is in inches. 
+      to use this lib alone. 
+
+      #define botConst1 or #define botConst2
+      #include<botConst.h> 
 
 */
 
@@ -36,41 +38,55 @@ NOTE: sonar unit is cm (for accuracy reason)
 #include <Arduino.h>
 #include "SabertoothSimplified.h"
 #include "NewPing.h"
+#include <botConst.h>
 
 #include "I2Cdev.h"
 #include "MPU6050.h"
 
-// Arduino Wire library is required if I2Cdev I2CDEV_ARDUINO_WIRE implementation
-// is used in I2Cdev.h
-#if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
-    #include "Wire.h"
-#endif
-
- #define MODULE_VISIBILITY  __attribute__ ((visibility ("hidden")))
- #define PUBLIC_VISIBILITY  __attribute__ ((visibility ("default")))
-
 
 /*********************************Ultrasonic Sensor constant*********************/
-#define SONAR_NUM     4 // Number or sensors.
+#define SONAR_NUM     5 // Number or sensors.
 #define MAX_DISTANCE 200 // Maximum distance (in cm) to ping.
 #define PING_INTERVAL 33 // Milliseconds between sensor pings (29ms is about the min to avoid cross-sensor echo).
 #define BACK_TO_LEFT_SONAR 16.5
 
 extern int SONAR_OFFSET[SONAR_NUM]; 
 
+
+
+//UNCOMMENT this block below if decide not to use #include<botConst.h>
 /***********************************************************************/
+/**
+//Driving.h const
+#define WHEELDIAMETER 2.99 //2017 robot wheel 
+
+adjust this value until the 2 encoder run at the same rate.
+in order this lib to work as expected. 
+ 
+#define R_MOTOR_MAX 98
+#define L_MOTOR_MAX 104
+#define L_TARGET_DIST_OFFSET 0.1
+#define R_TARGET_DIST_OFFSET 0
+
+#define L_TARGET_ANGLE_OFFSET 5
+#define R_TARGET_ANGLE_OFFSET 4
+//define controller constant
+#define K1 0.438    //LEFT controller constant
+#define K2 0.45743  //RIGHT controller constant
+#define V 0.3//1.3      //speed controller constant
+#define I 0.7   //integral controller constant
+*/
 
 
 /********************************motor driver***************************/
 //define constant
 // #define WHEELDIAMETER 2.7345 // metal wheel
- #define WHEELDIAMETER 2.99 //2017 robot wheel 
 
 #define ENCODERREVOLUTION 227.1 * 48
 #define INCH2C ENCODERREVOLUTION / ( WHEELDIAMETER * 3.141592653589 * 2 * 2 )
 #define COUNTER2INCHE ( WHEELDIAMETER * 3.14159265359 * 2 * 2) / ENCODERREVOLUTION
 #define WHEELWIDTH 10.875
-#define INCH_TO_CM 2.54
+#define CM_TO_INCH 2.54
 
 #define IMU_DELAY (100)
 #define M_PI 3.141592653589
@@ -85,23 +101,6 @@ extern int SONAR_OFFSET[SONAR_NUM];
 
 //define default motor driver communication
 #define MOTOR_DRIVER  14    //Using Tx_3 pin (Serial3)
-
-/**
- * adjust this value until the 2 encoder run at the same rate.
- * in order this lib to work as expected. 
- */
-#define R_MOTOR_MAX 98
-#define L_MOTOR_MAX 104
-#define L_TARGET_DIST_OFFSET 0.1
-#define R_TARGET_DIST_OFFSET 0
-
-#define L_TARGET_ANGLE_OFFSET 5
-#define R_TARGET_ANGLE_OFFSET 4
-//define controller constant
-#define K1 0.438		//LEFT controller constant
-#define K2 0.45743	//RIGHT controller constant
-#define V	0.3//1.3			//speed controller constant
-#define I	0.7		//integral controller constant
 
 #define kp 1.0
 #define ki 1.0
@@ -146,6 +145,23 @@ static void counter2(void);
 void dinit (void);		//default initiator, needed before using the functions from this library
 
 void driveto( float distance );
+
+/***
+ * This function Drive the bot to a certain distance . 
+ * by retrieve feedback from sonar and encoder to ensure that the bot move 
+ * to a desire dist.
+ * param dist( Dist you want the bot to travel) 
+ * param sonarUse( toggle what sonnar to use for feedback check) 
+ * sonarUse: 'f'(use front Sonar),
+ *       'b'(use back Sonar), 
+ *       '2'(use both Sonar),  
+ * 
+ * param straight(bool) (true - use checkParallel before get reading)
+ *             false - don't straighten the bot. 
+ * return
+ */
+void drivetoSonarFeedback(float dist, char sonarUse, bool straight);
+
 void steer(int16_t toAngle );
 /**
  * This function drive the robot to make sure 
@@ -167,14 +183,6 @@ void goParallel(float dispGoal,int leftDist, int rightDist);
  */
 int checkParallel();
 
-/**
- * This method check the front Dist travel of the bot 
- * Using the front ultrasonic dist on the bot. 
- * Return frontDistTravel in inch.
- *
- * Param:  None. 
- */ 
-float checkFrontDistTravel();
 
 void debugMode(void);
 void debug(bool);
@@ -209,6 +217,23 @@ int sonarDistComparator();
 int getSonarLeft();
 int getSonarRight();
 int getSonarLeftBack();
+
+/**
+ * This sonar require to be accurate in order for everything to work 
+ * 
+ * This function use api call provide by newPing lib 
+ * then calibrate the reading using a linear regression model.
+ * look at huskerBot 2018 src code folder to see the csv file with the model 
+ * offset: -2
+ * at the end compile will trunkate float to return int.
+ */
+int getSonarFront();
+
+/**
+ * 
+ */
+int getSonarBack();
+
 void setSonarOffset(int *sonar);
 void printAccuracySonar();
 
