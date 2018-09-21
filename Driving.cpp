@@ -1,3 +1,4 @@
+
 /*
 Author:	CheeTown Liew
 Version of June 10, 2017
@@ -504,7 +505,7 @@ positive value indicates left motor is faster than the right motor and vise vers
 				timestamp = millis();
 				pause = 1;
 			} else {
-				if ( abs(millis() - timestamp) > 300 ) {
+				if ( abs(millis() - timestamp) > 100 ) {
 					pause = 0;
 					break;
 				}
@@ -818,45 +819,21 @@ void goParallel(float dispGoal,int leftDist, int rightDist){
 	driveto(magnitude);
 	delay(100);
 	steer(-R2D(turnInRad)); // steer back to be parallel.
-	// checkParallel(); 
+	checkParallel(); 
 
 }
 int checkParallel(){
-	int left = getSonarLeft();
-	int back = getSonarLeftBack();
+	float left = getSonarLeft();
+	float back = getSonarLeftBack();
 
 	//error check if there is malfunction in sonar 
 	// or the bot is straight already. 
-	if(abs(back-left) > 10 || left == 0 || back == 0){
+	if(abs(back-left)/2 <= 3 || left == 0 || back == 0){
 		return 0;
 	}
 	int turnAngle = R2D(asin((float)(back-left)/BACK_TO_LEFT_SONAR));
 	steer(turnAngle);
 	return turnAngle;
-}	
-
-void checkTilParallel(){
-	int left = getSonarLeft();
-	int back = getSonarLeftBack();
-	int counter = 0; 
-
-	//error check if there is malfunction in sonar 
-	// or the bot is straight already. 
-	if(abs(back-left) > 10  || left == 0 || back == 0){
-		return 0;
-	}
-	while(abs(left-back) >= 2){
-		left = getSonarLeft();
-		back = getSonarLeftBack();
-		if(left > back) steer(-1);
-		else if(left < back) steer(1);
-		delay(200);
-		counter ++;
-		if(counter == 4){
-			break;
-		}
-	}
-
 }	
 
 int sonarDistComparator(){
@@ -961,12 +938,9 @@ void drivetoSonarFeedback(float dist, char sonarUse, bool straight){
 	float actualBackDisp =(float)(afterBackDist - beforeBackDist)/CM_TO_INCH; 
 
 	if(sonarUse == 'f') driveto(actualFrontDisp-dist);
-	
-	else if(sonarUse == 'b') {
-		driveto(dist - actualBackDisp);
-		Serial.println("use");Serial.print(dist-actualBackDisp);
-		Serial.println("");
-	}
+
+	//TODO : WRONG LOGIC 	
+	else if(sonarUse == 'b') driveto(dist - actualBackDisp);
+
 
 }	
-
